@@ -47,10 +47,56 @@
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
+TRAPHANDLER_NOEC(default_divide_error, T_DIVIDE)
+TRAPHANDLER_NOEC(default_debug_exception, T_DEBUG)
+TRAPHANDLER_NOEC(default_nmi_interrupt, T_NMI)
+TRAPHANDLER_NOEC(default_breakpoint, T_BRKPT)
+TRAPHANDLER_NOEC(default_overflow, T_OFLOW)
+TRAPHANDLER_NOEC(default_bound_check, T_BOUND)
+TRAPHANDLER_NOEC(default_illegal_opcode, T_ILLOP)
+TRAPHANDLER_NOEC(default_device_not_available, T_DEVICE)
+TRAPHANDLER(default_double_fault, T_DBLFLT)
+/* RESERVED */
+TRAPHANDLER(default_invalid_tss, T_TSS)
+TRAPHANDLER(default_segment_not_present, T_SEGNP)
+TRAPHANDLER(default_stack_exception, T_STACK)
+TRAPHANDLER(default_general_protection_fault, T_GPFLT)
+TRAPHANDLER(default_page_fault, T_PGFLT)
+/* RESERVED */
+TRAPHANDLER_NOEC(default_floating_point_error, T_FPERR)
+TRAPHANDLER(default_alignment_check, T_ALIGN)
+TRAPHANDLER_NOEC(default_machine_check, T_MCHK)
+TRAPHANDLER_NOEC(default_simd_floating_point_error, T_SIMDERR)
 
+TRAPHANDLER_NOEC(default_irq0, IRQ_OFFSET)
+TRAPHANDLER_NOEC(default_irq1, IRQ_OFFSET + 1)
+TRAPHANDLER_NOEC(default_irq2, IRQ_OFFSET + 2)
+TRAPHANDLER_NOEC(default_irq3, IRQ_OFFSET + 3)
+TRAPHANDLER_NOEC(default_irq4, IRQ_OFFSET + 4)
+TRAPHANDLER_NOEC(default_irq5, IRQ_OFFSET + 5)
+TRAPHANDLER_NOEC(default_irq6, IRQ_OFFSET + 6)
+TRAPHANDLER_NOEC(default_irq7, IRQ_OFFSET + 7)
+TRAPHANDLER_NOEC(default_irq8, IRQ_OFFSET + 8)
+TRAPHANDLER_NOEC(default_irq9, IRQ_OFFSET + 9)
+TRAPHANDLER_NOEC(default_irq10, IRQ_OFFSET + 10)
+TRAPHANDLER_NOEC(default_irq11, IRQ_OFFSET + 11)
+TRAPHANDLER_NOEC(default_irq12, IRQ_OFFSET + 12)
+TRAPHANDLER_NOEC(default_irq13, IRQ_OFFSET + 13)
+TRAPHANDLER_NOEC(default_irq14, IRQ_OFFSET + 14)
+TRAPHANDLER_NOEC(default_irq15, IRQ_OFFSET + 15)
 
+TRAPHANDLER_NOEC(default_system_call, T_SYSCALL)
 
 /*
  * Lab 3: Your code here for _alltraps
  */
 
+_alltraps:
+	pushl %ds
+	pushl %es
+	pushal
+	movl $GD_KD, %eax
+	movw %ax, %ds
+	movw %ax, %es
+	pushl %esp
+	call trap

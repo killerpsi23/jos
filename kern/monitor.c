@@ -25,6 +25,8 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Display function stack one line at a time", mon_backtrace},
+	{ "showmappings", "Display mappings of at most 50 pages", mon_showmappings},
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -59,10 +61,44 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
-	// Your code here.
+	uint32_t *ebp=(uint32_t*)read_ebp();
+    struct Eipdebuginfo info;
+    cprintf("Stack backtrace:\n");
+    while(ebp)
+    {
+        cprintf(" ebp %08x eip %08x args %08x %08x %08x %08x %08x\n",ebp,ebp[1],ebp[2],ebp[3],ebp[4],ebp[5],ebp[6]);
+        debuginfo_eip(ebp[1],&info);
+        cprintf("%s:%d: %.*s+%d\n",info.eip_file,info.eip_line,info.eip_fn_namelen,info.eip_fn_name,ebp[1]-info.eip_fn_addr);
+        ebp=(uint32_t*)ebp[0];
+    }
 	return 0;
 }
 
+int
+mon_showmappings(int argc, char **argv, struct Trapframe *tf)
+{
+	uintptr_t laddr,haddr,cur;
+	if (argc!=3)
+	{
+		cprintf(" usage: showmappings <base16 low address> <base16 high address>\n");
+		return 0;
+	}
+	laddr = strtol(argv[1],NULL,16);
+	haddr = strtol(argv[2],NULL,16);
+	laddr = ROUNDDOWN(laddr, PGSIZE);
+	int most_cnt = 50;
+	for( cur = laddr; cur < haddr && most_cnt; cur += PGSIZE, --most_cnt)
+	{
+		cprintf("now cur=%p\n",cur);
+		pte_t *cp = pgdir_walk(kern_pgdir, (void*)cur, 0);
+		if (cp)
+			cprintf(" Virtual %p to %p: Physical %p to %p  Prohibition bits: %x\n",
+					cur, cur+PGSIZE-1, PTE_ADDR(*cp), PTE_ADDR(*cp) + PGSIZE - 1, PGOFF(*cp));
+		else
+			cprintf(" Virtual %p to %p: No physical page\n", cur, cur+PGSIZE-1);
+	}
+	return 0;
+}
 
 
 /***** Kernel monitor command interpreter *****/
