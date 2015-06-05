@@ -11,7 +11,7 @@ void sched_halt(void);
 void
 sched_yield(void)
 {
-	struct Env *idle;
+	struct Thd *idle;
 
 	// Implement simple round-robin scheduling.
 	//
@@ -29,23 +29,24 @@ sched_yield(void)
 	// below to halt the cpu.
 
 	// LAB 4: Your code here.
-	struct Env *cur = thiscpu->cpu_env;
-	if (cur == NULL)
-	{
-		cur = envs;
-		for( idle = cur; idle != envs + NENV; idle ++)
-			if (idle->env_status == ENV_RUNNABLE)
-				env_run(idle);
-	} else
-	{
-		for( idle = cur + 1; idle != envs + NENV; idle ++)
-			if (idle->env_status == ENV_RUNNABLE)
-				env_run(idle);
-		for( idle = envs; idle != cur; idle ++)
-			if (idle->env_status == ENV_RUNNABLE)
-				env_run(idle);
-		if (cur->env_status == ENV_RUNNING)
-			env_run(cur);
+	struct Thd *cur = curthd;
+	if (cur == NULL) {
+		for(idle = thds; idle != thds + NTHD; idle++)
+			if (idle->thd_status == THD_RUNNABLE
+			 && idle->thd_env->env_status == ENV_RUNNABLE)
+				thd_run(idle);
+	} else {
+		for(idle = cur + 1; idle != thds + NTHD; idle++)
+			if (idle->thd_status == THD_RUNNABLE
+			 && idle->thd_env->env_status == ENV_RUNNABLE)
+				thd_run(idle);
+		for(idle = thds; idle != cur; idle++)
+			if (idle->thd_status == THD_RUNNABLE
+			 && idle->thd_env->env_status == ENV_RUNNABLE)
+				thd_run(idle);
+		if (cur->thd_status == THD_RUNNING
+		 && cur->thd_env->env_status == ENV_RUNNABLE)
+			thd_run(cur);
 	}
 	// sched_halt never returns
 	sched_halt();
@@ -61,10 +62,10 @@ sched_halt(void)
 
 	// For debugging and testing purposes, if there are no runnable
 	// environments in the system, then drop into the kernel monitor.
-	for (i = 0; i < NENV; i++) {
-		if ((envs[i].env_status == ENV_RUNNABLE ||
-		     envs[i].env_status == ENV_RUNNING ||
-		     envs[i].env_status == ENV_DYING))
+	for (i = 0; i < NTHD; i++) {
+		if ((thds[i].thd_status == THD_RUNNABLE ||
+		     thds[i].thd_status == THD_RUNNING ||
+		     thds[i].thd_status == THD_DYING))
 			break;
 	}
 	if (i == NENV) {
@@ -74,7 +75,7 @@ sched_halt(void)
 	}
 
 	// Mark that no environment is running on this CPU
-	curenv = NULL;
+	curthd = NULL;
 	lcr3(PADDR(kern_pgdir));
 
 	// Mark that this CPU is in the HALT state, so that when

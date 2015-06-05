@@ -18,6 +18,8 @@ enum {
 	E_IPC_NOT_RECV	= 8,	// Attempt to send to env that is not recving
 	E_EOF		= 9,	// Unexpected end of file
 
+	E_IPC_RECVING	,	// another thread is recving
+
 	MAXERROR
 };
 

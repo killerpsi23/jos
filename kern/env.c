@@ -18,8 +18,11 @@
 struct Env *envs = NULL;		// All environments
 static struct Env *env_free_list;	// Free environment list
 					// (linked by Env->env_link)
+struct Thd *thds = NULL;
+static struct Thd *thd_free_list;
 
 #define ENVGENSHIFT	12		// >= LOGNENV
+#define THDGENSHIFT	12
 
 // Global descriptor table.
 //
@@ -120,6 +123,7 @@ env_init(void)
 	// Set up envs array
 	// LAB 3: Your code here.
 	int i;
+	env_free_list = NULL;
 	for(i = NENV-1 ;i >= 0 ; i-- )
 	{
 		envs[i].env_link = env_free_list;
@@ -127,6 +131,15 @@ env_init(void)
 		envs[i].env_id = 0;
 		envs[i].env_status = ENV_FREE;
 	}
+
+	thd_free_list = NULL;
+	for (i = NTHD - 1; i >= 0; --i) {
+		thds[i].thd_link = thd_free_list;
+		thd_free_list = &thds[i];
+		thds[i].thd_id = 0;
+		thds[i].thd_status = THD_FREE;
+	}
+
 	// Per-CPU part of the initialization
 	env_init_percpu();
 }
@@ -214,13 +227,22 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	int32_t generation;
 	int r;
 	struct Env *e;
+	struct Thd *t;
 
 	if (!(e = env_free_list))
 		return -E_NO_FREE_ENV;
 
-	// Allocate and set up the page directory for this environment.
-	if ((r = env_setup_vm(e)) < 0)
+	e->env_thd_head = NULL;
+	e->env_thd_tail = NULL;
+
+	if ((r = thd_alloc(&t, e)) < 0)
 		return r;
+
+	// Allocate and set up the page directory for this environment.
+	if ((r = env_setup_vm(e)) < 0) {
+		thd_free(t);
+		return r;
+	}
 
 	// Generate an env_id for this environment.
 	generation = (e->env_id + (1 << ENVGENSHIFT)) & ~(NENV - 1);
@@ -232,32 +254,6 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	e->env_parent_id = parent_id;
 	e->env_type = ENV_TYPE_USER;
 	e->env_status = ENV_RUNNABLE;
-	e->env_runs = 0;
-
-	// Clear out all the saved register state,
-	// to prevent the register values
-	// of a prior environment inhabiting this Env structure
-	// from "leaking" into our new environment.
-	memset(&e->env_tf, 0, sizeof(e->env_tf));
-
-	// Set up appropriate initial values for the segment registers.
-	// GD_UD is the user data segment selector in the GDT, and
-	// GD_UT is the user text segment selector (see inc/memlayout.h).
-	// The low 2 bits of each segment register contains the
-	// Requestor Privilege Level (RPL); 3 means user mode.  When
-	// we switch privilege levels, the hardware does various
-	// checks involving the RPL and the Descriptor Privilege Level
-	// (DPL) stored in the descriptors themselves.
-	e->env_tf.tf_ds = GD_UD | 3;
-	e->env_tf.tf_es = GD_UD | 3;
-	e->env_tf.tf_ss = GD_UD | 3;
-	e->env_tf.tf_esp = USTACKTOP;
-	e->env_tf.tf_cs = GD_UT | 3;
-	// You will set e->env_tf.tf_eip later.
-
-	// Enable interrupts while in user mode.
-	// LAB 4: Your code here.
-	e->env_tf.tf_eflags |= FL_IF;
 
 	// Clear the page fault handler until user installs one.
 	e->env_pgfault_upcall = 0;
@@ -385,7 +381,7 @@ load_icode(struct Env *e, uint8_t *binary)
 			*((uint8_t*)(ph->p_va)+i) = 0;
 	}
 	lcr3(PADDR(kern_pgdir));
-	e->env_tf.tf_eip = ELFHDR -> e_entry;
+	e->env_thd_head->thd_tf.tf_eip = ELFHDR -> e_entry;
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 
@@ -476,15 +472,22 @@ env_destroy(struct Env *e)
 	// If e is currently running on other CPUs, we change its state to
 	// ENV_DYING. A zombie environment will be freed the next time
 	// it traps to the kernel.
-	if (e->env_status == ENV_RUNNING && curenv != e) {
+	struct Thd *t;
+
+	for (t = e->env_thd_head; t != NULL; t = t->thd_next)
+		if (t->thd_status == THD_RUNNING && curthd != t)
+			t->thd_status = THD_DYING;
+		else
+			thd_free(t);
+		
+
+	if (e->env_thd_head != NULL)
 		e->env_status = ENV_DYING;
-		return;
-	}
+	else
+		env_free(e);
 
-	env_free(e);
-
-	if (curenv == e) {
-		curenv = NULL;
+	if (curthd->thd_env == e) {
+		curthd = NULL;
 		sched_yield();
 	}
 }
@@ -497,10 +500,10 @@ env_destroy(struct Env *e)
 // This function does not return.
 //
 void
-env_pop_tf(struct Trapframe *tf)
+thd_pop_tf(struct Trapframe *tf)
 {
 	// Record the CPU we are running on for user-space debugging
-	curenv->env_cpunum = cpunum();
+	curthd->thd_cpunum = cpunum();
 
 	__asm __volatile("movl %0,%%esp\n"
 		"\tpopal\n"
@@ -519,7 +522,7 @@ env_pop_tf(struct Trapframe *tf)
 // This function does not return.
 //
 void
-env_run(struct Env *e)
+thd_run(struct Thd *t)
 {
 	// Step 1: If this is a context switch (a new environment is running):
 	//	   1. Set the current environment (if any) back to
@@ -539,18 +542,120 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
-	if (curenv != e)
-	{
-		if (curenv != NULL && curenv -> env_status == ENV_RUNNING)
-			curenv -> env_status = ENV_RUNNABLE;
-		curenv = e;
-		e -> env_status = ENV_RUNNING;
-		++ e -> env_runs;
-		lcr3(PADDR(e->env_pgdir));
+	if (curthd != t) {
+		if (curthd != NULL && curthd->thd_status == THD_RUNNING)
+			curthd->thd_status = THD_RUNNABLE;
+		curthd = t;
+		t->thd_status = THD_RUNNING;
+		++t->thd_runs;
 	}
-	unlock_kernel();
-	env_pop_tf(&e->env_tf);
 
-	//panic("env_run not yet implemented");
+	if (rcr3() != PADDR(t->thd_env->env_pgdir))
+		lcr3(PADDR(t->thd_env->env_pgdir));
+
+	unlock_kernel();
+	thd_pop_tf(&t->thd_tf);
 }
 
+/*
+ * alloc a thread for env
+ */
+int
+thd_alloc(struct Thd **newthd_store, struct Env *env)
+{
+	int32_t generation;
+	int r;
+	struct Thd *t;
+	
+	if (!(t = thd_free_list))
+		return -E_NO_FREE_ENV;
+
+	generation = (t->thd_id + (1 << THDGENSHIFT)) & ~(NTHD - 1);
+	if (generation <= 0)
+		generation = 1 << THDGENSHIFT;
+	t->thd_id = generation | (t - thds);
+
+	t->thd_env = env;
+	t->thd_status = THD_RUNNABLE;
+	t->thd_runs = 0;
+
+	// Clear out all the saved register state,
+	// to prevent the register values
+	// of a prior environment inhabiting this Env structure
+	// from "leaking" into our new environment.
+	memset(&t->thd_tf, 0, sizeof(t->thd_tf));
+	
+	// Set up appropriate initial values for the segment registers.
+	// GD_UD is the user data segment selector in the GDT, and
+	// GD_UT is the user text segment selector (see inc/memlayout.h).
+	// The low 2 bits of each segment register contains the
+	// Requestor Privilege Level (RPL); 3 means user mode.  When
+	// we switch privilege levels, the hardware does various
+	// checks involving the RPL and the Descriptor Privilege Level
+	// (DPL) stored in the descriptors themselves.
+	t->thd_tf.tf_ds = GD_UD | 3;
+	t->thd_tf.tf_es = GD_UD | 3;
+	t->thd_tf.tf_ss = GD_UD | 3;
+	t->thd_tf.tf_esp = USTACKTOP;
+	t->thd_tf.tf_cs = GD_UT | 3;
+	// Enable interrupts while in user mode.
+	t->thd_tf.tf_eflags |= FL_IF;
+
+	if (env->env_thd_head) {
+		t->thd_prev = env->env_thd_tail;
+		t->thd_next = NULL;
+		env->env_thd_tail->thd_next = t;
+		env->env_thd_tail = t;
+	} else {
+		t->thd_prev = NULL;
+		t->thd_next = NULL;
+		env->env_thd_head = t;
+		env->env_thd_tail = t;
+	}
+
+	thd_free_list = t->thd_link;
+	*newthd_store = t;
+
+	return 0;
+}
+
+void
+thd_free(struct Thd *t)
+{
+	assert(t->thd_status != THD_FREE);
+
+	cprintf("[%08x] free thd %08x\n", curenv ? curenv->env_id : 0, t->thd_id);
+	
+	t->thd_status = THD_FREE;
+
+	if (t->thd_prev)
+		t->thd_prev->thd_next = t->thd_next;
+	else
+		t->thd_env->env_thd_head = t->thd_next;
+	if (t->thd_next)
+		t->thd_next->thd_prev = t->thd_prev;
+	else
+		t->thd_env->env_thd_tail = t->thd_prev;
+
+	t->thd_link = thd_free_list;
+	thd_free_list = t;
+}
+
+void
+thd_destroy(struct Thd *t)
+{
+	if (t->thd_status == THD_RUNNING && curthd != t) {
+		t->thd_status = THD_DYING;
+		return;
+	}
+
+	thd_free(t);
+
+	if (t->thd_env->env_thd_head == NULL)
+		env_free(t->thd_env);
+
+	if (curthd == t) {
+		curthd = NULL;
+		sched_yield();
+	}
+}

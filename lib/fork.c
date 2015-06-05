@@ -25,8 +25,9 @@ pgfault(struct UTrapframe *utf)
 	//   (see <inc/memlayout.h>).
 
 	// LAB 4: Your code here.
-	int perm = 0xfff & uvpt[PGNUM(addr)];
-	if (!((err & FEC_WR) && (perm & PTE_COW) && (perm & PTE_P) && (uvpd[PDX(addr)] & PTE_P)))
+	if (!((err & FEC_WR) && (uvpd[PDX(addr)] & PTE_P)
+			&& (uvpt[PGNUM(addr)] & PTE_P)
+			&& (uvpt[PGNUM(addr)] & PTE_COW)))
 		panic("not a write or a cow page");
 
 	// Allocate a new page, map it at a temporary location (PFTEMP),

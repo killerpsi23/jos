@@ -337,21 +337,23 @@ trap(struct Trapframe *tf)
 		// serious kernel work.
 		// LAB 4: Your code here.
 		lock_kernel();
-		assert(curenv);
+		assert(curthd);
 
 		// Garbage collect if current enviroment is a zombie
-		if (curenv->env_status == ENV_DYING) {
-			env_free(curenv);
-			curenv = NULL;
+		if (curthd->thd_status == THD_DYING) {
+			thd_free(curthd);
+			if (curenv->env_thd_head == NULL)
+				env_free(curenv);
+			curthd = NULL;
 			sched_yield();
 		}
 
 		// Copy trap frame (which is currently on the stack)
 		// into 'curenv->env_tf', so that running the environment
 		// will restart at the trap point.
-		curenv->env_tf = *tf;
+		curthd->thd_tf = *tf;
 		// The trapframe on the stack should be ignored from here on.
-		tf = &curenv->env_tf;
+		tf = &curthd->thd_tf;
 	}
 
 	// Record that tf is the last real trapframe so
@@ -364,8 +366,9 @@ trap(struct Trapframe *tf)
 	// If we made it to this point, then no other environment was
 	// scheduled, so we should return to the current environment
 	// if doing so makes sense.
-	if (curenv && curenv->env_status == ENV_RUNNING)
-		env_run(curenv);
+	if (curthd && curthd->thd_status == THD_RUNNING
+		   && curthd->thd_env->env_status == ENV_RUNNABLE)
+		thd_run(curthd);
 	else
 		sched_yield();
 }
@@ -380,33 +383,12 @@ page_fault_handler(struct Trapframe *tf)
 	fault_va = rcr2();
 
 	// Handle kernel-mode page faults.
-
-	// LAB 3: Your code here.
-
-	if ((tf->tf_cs & 3) == 0)
-	{
-		cprintf("kernel page fault\n");
-		struct PageInfo *pg = page_alloc(ALLOC_ZERO);
-		if (pg != NULL)
-			page_insert(kern_pgdir, pg, (void*)fault_va, PTE_W);
-		else
-			panic("no enough memory");
-		cprintf("should never print this\n");
-		panic("no enough memory");
-		return;
+	if ((tf->tf_cs & 3) == 0) {
+		cprintf("page fault in kernel mode");
 	}
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
-	/*
-	assert((tf->tf_cs & 3) == 3);
-	struct PageInfo *pg = page_alloc(ALLOC_ZERO);
-	if (pg != NULL)
-	{
-		page_insert(curenv->env_pgdir, pg, fault_va, PTE_W | PTE_U);
-		return;
-	}
-	*/
 
 	// Call the environment's page fault upcall, if one exists.  Set up a
 	// page fault stack frame on the user exception stack (below
@@ -437,23 +419,23 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
-	if (curenv -> env_pgfault_upcall != NULL)
+	if (curenv->env_pgfault_upcall != NULL)
 	{
 		struct UTrapframe *tar;
-		if (tf -> tf_esp > USTACKTOP)
-			tar = (struct UTrapframe*) (curenv -> env_tf.tf_esp - sizeof(struct UTrapframe) - 4);
+		if (tf->tf_esp > USTACKTOP)
+			tar = (struct UTrapframe*) (curthd->thd_tf.tf_esp - sizeof(struct UTrapframe) - 4);
 		else
 			tar = (struct UTrapframe*) (UXSTACKTOP - sizeof(struct UTrapframe));
-		user_mem_assert(curenv, tar, sizeof(struct UTrapframe), PTE_P | PTE_U | PTE_W );
-		tar -> utf_fault_va = fault_va;
-		tar -> utf_err = tf -> tf_err;
-		tar -> utf_regs = tf -> tf_regs;
-		tar -> utf_eip = tf -> tf_eip;
-		tar -> utf_eflags = tf -> tf_eflags;
-		tar -> utf_esp = tf -> tf_esp;
-		tf -> tf_eip = (uintptr_t)curenv -> env_pgfault_upcall;
-		tf -> tf_esp = (uintptr_t)tar;
-		env_run(curenv);
+		user_mem_assert(curenv, tar, sizeof(struct UTrapframe), PTE_W);
+		tar->utf_fault_va = fault_va;
+		tar->utf_err = tf->tf_err;
+		tar->utf_regs = tf->tf_regs;
+		tar->utf_eip = tf->tf_eip;
+		tar->utf_eflags = tf->tf_eflags;
+		tar->utf_esp = tf->tf_esp;
+		tf->tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+		tf->tf_esp = (uintptr_t)tar;
+		thd_run(curthd);
 	}
 
 	// Destroy the environment that caused the fault.

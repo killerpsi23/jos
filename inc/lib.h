@@ -28,6 +28,8 @@ extern const char *binaryname;
 extern const volatile struct Env *thisenv;
 extern const volatile struct Env envs[NENV];
 extern const volatile struct PageInfo pages[];
+#define thds ((struct Thd *)&envs[NENV])
+#define thisthd (&thds[ENVX(sys_getthdid())])
 
 // exit.c
 void	exit(void);
@@ -53,6 +55,7 @@ int	sys_page_map(envid_t src_env, void *src_pg,
 int	sys_page_unmap(envid_t env, void *pg);
 int	sys_ipc_try_send(envid_t to_env, uint32_t value, void *pg, int perm);
 int	sys_ipc_recv(void *rcv_pg);
+thdid_t	sys_getthdid(void);
 
 // This must be inlined.  Exercise for reader: why?
 static __inline envid_t __attribute__((always_inline))

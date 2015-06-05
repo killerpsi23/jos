@@ -111,3 +111,8 @@ sys_ipc_recv(void *dstva)
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
 }
 
+thdid_t
+sys_getthdid(void)
+{
+	 return syscall(SYS_getthdid, 0, 0, 0, 0, 0, 0);
+}

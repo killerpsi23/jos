@@ -8,6 +8,7 @@
 #include <inc/memlayout.h>
 
 typedef int32_t envid_t;
+typedef int32_t thdid_t;
 
 // An environment ID 'envid_t' has three parts:
 //
@@ -28,14 +29,25 @@ typedef int32_t envid_t;
 #define LOG2NENV		10
 #define NENV			(1 << LOG2NENV)
 #define ENVX(envid)		((envid) & (NENV - 1))
+#define LOG2NTHD		10
+#define NTHD			(1 << LOG2NTHD)
+#define THDX(thdid)		((thdid) & (NTHD - 1))
 
 // Values of env_status in struct Env
-enum {
+enum EnvStatus {
 	ENV_FREE = 0,
 	ENV_DYING,
 	ENV_RUNNABLE,
-	ENV_RUNNING,
+	ENV_RUNNING, // do not use ENV_RUNNING any more
 	ENV_NOT_RUNNABLE
+};
+
+enum ThdStatus {
+	THD_FREE = 0,
+	THD_DYING,
+	THD_RUNNABLE,
+	THD_RUNNING,
+	THD_NOT_RUNNABLE
 };
 
 // Special environment types
@@ -45,27 +57,27 @@ enum EnvType {
 
 struct Env;
 
-struct Thread {
+struct Thd {
 	struct Trapframe thd_tf;	// Saved registers
-	struct Thread *thd_link;	// Next free Thread
-	thdid_t thd_id;			// Thread id
-	struct Env *thd_env;		// Env of Thread
-	struct Thread *thd_prev;	// Previous Thread in Thread list
-	struct Thread *thd_next;	// Next Thread in Thread list
-	unsigned thd_status;		// Status of the environment
+	struct Thd *thd_link;	// Next free Thd
+	thdid_t thd_id;			// Thd id
+	struct Env *thd_env;		// Env of Thd
+	struct Thd *thd_prev;	// Previous Thd in Thd list
+	struct Thd *thd_next;	// Next Thd in Thd list
+	enum ThdStatus thd_status;	// Status of the thread
 	uint32_t thd_runs;		// Number of times environment has run
 	int thd_cpunum;			// The CPU that the env is running on
-
-}
+};
 
 struct Env {
 	struct Env *env_link;		// Next free Env
 	envid_t env_id;			// Unique environment identifier
 	envid_t env_parent_id;		// env_id of this env's parent
+	enum EnvStatus env_status;	// Status of the environment
 	enum EnvType env_type;		// Indicates special system environments
 
-	struct Thread *env_thd_head;	// Head of Thread list
-	struct Thread *env_thd_tail;	// Tail of Thread list
+	struct Thd *env_thd_head;	// Head of Thd list
+	struct Thd *env_thd_tail;	// Tail of Thd list
 
 	// Address space
 	pde_t *env_pgdir;		// Kernel virtual address of page dir
@@ -75,6 +87,7 @@ struct Env {
 
 	// Lab 4 IPC
 	bool env_ipc_recving;		// Env is blocked receiving
+	struct Thd *env_ipc_thd;	// receving thread
 	void *env_ipc_dstva;		// VA at which to map received page
 	uint32_t env_ipc_value;		// Data value sent to us
 	envid_t env_ipc_from;		// envid of the sender
