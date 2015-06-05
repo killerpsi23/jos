@@ -43,15 +43,29 @@ enum EnvType {
 	ENV_TYPE_USER = 0,
 };
 
+struct Env;
+
+struct Thread {
+	struct Trapframe thd_tf;	// Saved registers
+	struct Thread *thd_link;	// Next free Thread
+	thdid_t thd_id;			// Thread id
+	struct Env *thd_env;		// Env of Thread
+	struct Thread *thd_prev;	// Previous Thread in Thread list
+	struct Thread *thd_next;	// Next Thread in Thread list
+	unsigned thd_status;		// Status of the environment
+	uint32_t thd_runs;		// Number of times environment has run
+	int thd_cpunum;			// The CPU that the env is running on
+
+}
+
 struct Env {
-	struct Trapframe env_tf;	// Saved registers
 	struct Env *env_link;		// Next free Env
 	envid_t env_id;			// Unique environment identifier
 	envid_t env_parent_id;		// env_id of this env's parent
 	enum EnvType env_type;		// Indicates special system environments
-	unsigned env_status;		// Status of the environment
-	uint32_t env_runs;		// Number of times environment has run
-	int env_cpunum;			// The CPU that the env is running on
+
+	struct Thread *env_thd_head;	// Head of Thread list
+	struct Thread *env_thd_tail;	// Tail of Thread list
 
 	// Address space
 	pde_t *env_pgdir;		// Kernel virtual address of page dir
