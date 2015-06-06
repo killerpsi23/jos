@@ -24,6 +24,7 @@ void	thd_free(struct Thd *t);
 void	thd_destroy(struct Thd *t);
 
 int	envid2env(envid_t envid, struct Env **env_store, bool checkperm);
+int	thdid2thd(thdid_t thdid, struct Thd **thd_store, bool checkperm);
 // The following two functions do not return
 void	thd_run(struct Thd *e) __attribute__((noreturn));
 void	thd_pop_tf(struct Trapframe *tf) __attribute__((noreturn));

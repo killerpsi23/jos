@@ -422,10 +422,11 @@ page_fault_handler(struct Trapframe *tf)
 	if (curenv->env_pgfault_upcall != NULL)
 	{
 		struct UTrapframe *tar;
-		if (tf->tf_esp > USTACKTOP)
+		if (tf->tf_esp >= curthd->thd_uxstack - PGSIZE &&
+		    tf->tf_esp < curthd->thd_uxstack - PGSIZE)
 			tar = (struct UTrapframe*) (curthd->thd_tf.tf_esp - sizeof(struct UTrapframe) - 4);
 		else
-			tar = (struct UTrapframe*) (UXSTACKTOP - sizeof(struct UTrapframe));
+			tar = (struct UTrapframe*) (curthd->thd_uxstack - sizeof(struct UTrapframe));
 		user_mem_assert(curenv, tar, sizeof(struct UTrapframe), PTE_W);
 		tar->utf_fault_va = fault_va;
 		tar->utf_err = tf->tf_err;

@@ -67,6 +67,7 @@ struct Thd {
 	enum ThdStatus thd_status;	// Status of the thread
 	uint32_t thd_runs;		// Number of times environment has run
 	int thd_cpunum;			// The CPU that the env is running on
+	uintptr_t thd_uxstack;
 };
 
 struct Env {

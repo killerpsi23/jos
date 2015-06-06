@@ -17,6 +17,11 @@ enum {
 	SYS_ipc_try_send,
 	SYS_ipc_recv,
 	SYS_getthdid,
+	SYS_thd_create,
+	SYS_thd_destroy,
+	SYS_thd_set_status,
+	SYS_thd_set_trapframe,
+	SYS_thd_set_uxstack,
 	NSYSCALLS
 };
 

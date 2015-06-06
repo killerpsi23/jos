@@ -578,6 +578,7 @@ thd_alloc(struct Thd **newthd_store, struct Env *env)
 	t->thd_env = env;
 	t->thd_status = THD_RUNNABLE;
 	t->thd_runs = 0;
+	t->thd_uxstack = UXSTACKTOP;
 
 	// Clear out all the saved register state,
 	// to prevent the register values
@@ -658,4 +659,29 @@ thd_destroy(struct Thd *t)
 		curthd = NULL;
 		sched_yield();
 	}
+}
+
+int
+thdid2thd(thdid_t thdid, struct Thd **thd_store, bool checkperm)
+{
+	struct Thd *t;
+
+	if (thdid == 0) {
+		*thd_store = curthd;
+		return 0;
+	}
+
+	t = &thds[ENVX(thdid)];
+	if (t->thd_status == THD_FREE || t->thd_id != thdid) {
+		*thd_store = 0;
+		return -E_BAD_ENV;
+	}
+
+	if (checkperm && t->thd_env != curenv) {
+		*thd_store = 0;
+		return -E_BAD_ENV;
+	}
+
+	*thd_store = t;
+	return 0;
 }

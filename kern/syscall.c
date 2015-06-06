@@ -397,6 +397,70 @@ sys_getthdid(void)
 	return curthd->thd_id;
 }
 
+static thdid_t
+sys_thd_create()
+{
+	struct Thd * t;
+	int r;
+	r = thd_alloc(&t,curenv);
+	if(r <  0 ) 
+		return r;
+	t->thd_status = THD_NOT_RUNNABLE;
+	return t->thd_id;
+}
+
+static int
+sys_thd_destroy(thdid_t tid)
+{
+	int r;
+	struct Thd * t;
+	r = thdid2thd(tid, &t, true);
+	if (r < 0) return r;
+	thd_destroy(t);
+	return 0;
+}
+
+static int
+sys_thd_set_status(thdid_t tid, int status)
+{
+	struct Thd * t;
+	int r;
+	r = thdid2thd(tid, &t, true);
+	if (r < 0) return r;
+	if (status != THD_RUNNABLE && status != ENV_NOT_RUNNABLE)
+		return -E_INVAL;
+	t->thd_status  = status;
+	return 0;
+}
+static int 
+sys_thd_set_trapframe(thdid_t tid, struct Trapframe *tf)
+{
+	struct Thd * t;
+	int r;
+	r = thdid2thd(tid, &t, true);
+	if (r < 0) return r;
+	user_mem_assert(curenv, tf, sizeof(struct Trapframe), 0);
+	t->thd_tf = *tf;
+	t->thd_tf.tf_ds = GD_UD | 3;
+	t->thd_tf.tf_es = GD_UD | 3;
+	t->thd_tf.tf_ss = GD_UD | 3;
+	t->thd_tf.tf_cs = GD_UT | 3;
+        t->thd_tf.tf_eflags |= FL_IF;
+	return 0;
+}
+
+static int 
+sys_thd_set_uxstack(thdid_t tid, uintptr_t uxstack)
+{
+	struct Thd * t;
+	int r;
+	r = thdid2thd(tid, &t, true);
+	if (r < 0) return r;
+	if (PGOFF(uxstack)) return -E_INVAL;
+	t->thd_uxstack = uxstack;
+	return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -438,6 +502,16 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_ipc_recv((void*)a1);
 	case SYS_getthdid:
 		return sys_getthdid();
+	case SYS_thd_create:
+		return sys_thd_create();
+	case SYS_thd_destroy:
+		return sys_thd_destroy((thdid_t) a1);
+	case SYS_thd_set_status:
+		return sys_thd_set_status((thdid_t)a1,(int) a2);
+	case SYS_thd_set_trapframe:
+		return sys_thd_set_trapframe((thdid_t)a1,(struct Trapframe *)a2);
+	case SYS_thd_set_uxstack:
+		return sys_thd_set_uxstack((thdid_t) a1, a2);
 	default:
 		return -E_NO_SYS;
 	}

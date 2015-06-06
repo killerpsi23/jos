@@ -116,3 +116,33 @@ sys_getthdid(void)
 {
 	 return syscall(SYS_getthdid, 0, 0, 0, 0, 0, 0);
 }
+
+thdid_t 
+sys_thd_create()
+{
+	return syscall(SYS_thd_create, 0, 0, 0, 0, 0, 0);
+}
+
+int 
+sys_thd_destroy(thdid_t tid)
+{
+	return syscall(SYS_thd_destroy,1, tid, 0, 0, 0, 0);
+}
+
+int 
+sys_thd_set_status(thdid_t tid,int status)
+{
+	return syscall(SYS_thd_set_status,1,tid,status,0 ,0 ,0);
+}
+
+int 
+sys_thd_set_trapframe(thdid_t tid, struct Trapframe * tf)
+{
+	return syscall(SYS_thd_set_trapframe, 0, tid, (uint32_t)tf ,0, 0, 0);
+}
+
+int 
+sys_thd_set_uxstack(thdid_t tid,uintptr_t uxstack)
+{
+	 return syscall(SYS_thd_set_trapframe,0,tid,uxstack,0, 0, 0);
+}

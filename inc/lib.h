@@ -55,8 +55,13 @@ int	sys_page_map(envid_t src_env, void *src_pg,
 int	sys_page_unmap(envid_t env, void *pg);
 int	sys_ipc_try_send(envid_t to_env, uint32_t value, void *pg, int perm);
 int	sys_ipc_recv(void *rcv_pg);
-thdid_t	sys_getthdid(void);
 
+thdid_t	sys_getthdid(void);
+thdid_t sys_thd_create();
+int sys_thd_destroy(thdid_t tid);
+int sys_thd_set_status(thdid_t tid, int status);
+int sys_thd_set_trapframe(thdid_t tid, struct Trapframe * tf );
+int sys_thd_set_uxstack(thdid_t tid,uintptr_t uxstack );
 // This must be inlined.  Exercise for reader: why?
 static __inline envid_t __attribute__((always_inline))
 sys_exofork(void)
