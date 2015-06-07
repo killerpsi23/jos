@@ -138,11 +138,11 @@ sys_thd_set_status(thdid_t tid,int status)
 int 
 sys_thd_set_trapframe(thdid_t tid, struct Trapframe * tf)
 {
-	return syscall(SYS_thd_set_trapframe, 0, tid, (uint32_t)tf ,0, 0, 0);
+	return syscall(SYS_thd_set_trapframe, 1, tid, (uint32_t)tf ,0, 0, 0);
 }
 
 int 
 sys_thd_set_uxstack(thdid_t tid,uintptr_t uxstack)
 {
-	 return syscall(SYS_thd_set_trapframe,0,tid,uxstack,0, 0, 0);
+	 return syscall(SYS_thd_set_trapframe,1,tid,uxstack,0, 0, 0);
 }
