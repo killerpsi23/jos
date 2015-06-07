@@ -403,7 +403,7 @@ sys_thd_create()
 	struct Thd * t;
 	int r;
 	r = thd_alloc(&t,curenv);
-	if(r <  0 ) 
+	if(r < 0)
 		return r;
 	t->thd_status = THD_NOT_RUNNABLE;
 	return t->thd_id;
@@ -427,7 +427,7 @@ sys_thd_set_status(thdid_t tid, int status)
 	int r;
 	r = thdid2thd(tid, &t, true);
 	if (r < 0) return r;
-	if (status != THD_RUNNABLE && status != ENV_NOT_RUNNABLE)
+	if (status != THD_RUNNABLE && status != THD_NOT_RUNNABLE)
 		return -E_INVAL;
 	t->thd_status  = status;
 	return 0;

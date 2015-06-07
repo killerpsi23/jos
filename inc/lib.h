@@ -17,6 +17,7 @@
 #include <inc/memlayout.h>
 #include <inc/syscall.h>
 #include <inc/trap.h>
+#include <inc/x86.h>
 
 #define USED(x)		(void)(x)
 
@@ -28,6 +29,7 @@ extern const char *binaryname;
 extern const volatile struct Env *thisenv;
 extern const volatile struct Env envs[NENV];
 extern const volatile struct PageInfo pages[];
+extern volatile thdid_t main_thdid;
 #define thds ((struct Thd *)&envs[NENV])
 #define thisthd (&thds[ENVX(sys_getthdid())])
 
@@ -85,6 +87,10 @@ envid_t	ipc_find_env(enum EnvType type);
 envid_t	fork(void);
 envid_t	sfork(void);	// Challenge!
 
+// thread.c
+thdid_t create_thread(void(*func)(void*), void*para);
+int delete_thread(thdid_t tar);
+void wait_thread(thdid_t tar);
 
 
 /* File open modes */
