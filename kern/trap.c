@@ -423,7 +423,7 @@ page_fault_handler(struct Trapframe *tf)
 	{
 		struct UTrapframe *tar;
 		if (tf->tf_esp >= curthd->thd_uxstack - PGSIZE &&
-		    tf->tf_esp < curthd->thd_uxstack - PGSIZE)
+		    tf->tf_esp < curthd->thd_uxstack)
 			tar = (struct UTrapframe*) (curthd->thd_tf.tf_esp - sizeof(struct UTrapframe) - 4);
 		else
 			tar = (struct UTrapframe*) (curthd->thd_uxstack - sizeof(struct UTrapframe));

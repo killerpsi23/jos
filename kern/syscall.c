@@ -187,7 +187,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	must_perm |= PTE_AVAIL | PTE_W;
 	if ((perm & must_perm) != perm)
 		return -E_INVAL;
-	struct PageInfo *pg = page_alloc(0);
+	struct PageInfo *pg = page_alloc(ALLOC_ZERO);
 	if (pg == NULL)
 		return -E_NO_MEM;
 	ret = page_insert(tar->env_pgdir, pg, va, perm);
