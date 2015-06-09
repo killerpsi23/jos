@@ -41,7 +41,7 @@ void sort(void*para)
 		sort(stal);
 		sort(star);
 	}
-	
+
 	int i,j,c;
 	for(i=L,j=t,c=L;i<t||j<R;)
 	{
