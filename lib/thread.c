@@ -44,15 +44,15 @@ thread_start(void(*func)(void*), void *para)
 thdid_t
 create_thread(void(*func)(void*), void*para)
 {
+	thread_lock();
 	thdid_t child = sys_thd_create();
 	if (child < 0)
 		return child;
-	thread_lock();
 	int p = get_empty_thread_position();
 	if (p < 0)
 		panic(" create_thread error 0: Do not have thread space for new thread!");
 	thread_used_stack[p] = child;
-	thread_unlock();
+	cprintf("alloc stack %p\n", UTSTACKTOP(p));
 	int r = sys_page_alloc(0, (void*)(UTXSTACKTOP(p) - PGSIZE), PTE_P | PTE_U | PTE_W);
 	if (r < 0)
 		panic(" create_thread error 1: %e", r);
@@ -71,6 +71,7 @@ create_thread(void(*func)(void*), void*para)
 	tf.tf_eflags = 0;
 	tf.tf_eip = (uintptr_t)thread_start;
 	tf.tf_esp = (uintptr_t)(tmp - 1);
+	cprintf("set id = %d eip = %p esp = %p\n",child, tf.tf_eip, tf.tf_esp);
 	r = sys_thd_set_trapframe(child, &tf);
 	if (r < 0)
 		panic(" create_thread error 3: %e", r);
@@ -80,6 +81,7 @@ create_thread(void(*func)(void*), void*para)
 	r = sys_thd_set_status(child, THD_RUNNABLE);
 	if (r < 0)
 		panic(" create_thread error 5: %e", r);
+	thread_unlock();
 	return child;
 }
 
@@ -95,20 +97,13 @@ delete_thread(thdid_t tar)
 	for(stk = 1; stk < THREAD_MAX; stk++)
 		if (thread_used_stack[stk] == tar)
 			break;
+	cprintf("delete stack: %p\n", UTSTACKTOP(stk));
 	if (cur == tar)
 	{
 		if (stk == THREAD_MAX)
 			panic("delete_thread error 0: target thread does not have stack");
 		// cannot use stack now
-
-		// it seems that we do not have to lock here, LiChao
-		thread_lock();
 		thread_used_stack[stk] = 0;
-		//thread_unlock();
-		asm volatile("lock; xchgl %0, %1" :
-				"+m" (t_lock) :
-				"a" (0) :
-				"cc");
 
 		// sys_thd_destroy(0);
 		asm volatile("int %0\n"
@@ -131,9 +126,7 @@ delete_thread(thdid_t tar)
 		if (stk == THREAD_MAX)
 			panic("delete_thread error 2: target thread does not have stack");
 		wait_thread(tar);
-		thread_lock();
 		thread_used_stack[stk] = 0;
-		thread_unlock();
 	}
 	return 0;
 }

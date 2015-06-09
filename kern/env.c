@@ -617,7 +617,7 @@ thd_alloc(struct Thd **newthd_store, struct Env *env)
 	thd_free_list = t->thd_link;
 	*newthd_store = t;
 
-	cprintf("[%08x] new thd %08x\n", t->thd_id);
+	cprintf("[%08x] new thd %08x\n", curthd ? curthd -> thd_id : 0, t->thd_id);
 
 	return 0;
 }

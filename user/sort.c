@@ -1,6 +1,6 @@
 #include<inc/lib.h>
 
-#define n 16384
+#define n 256
 
 unsigned rand()
 {
@@ -17,6 +17,10 @@ void sort(void*para)
 {
 	int L=*(int*)para;
 	int R=*(int*)(para+4);
+	assert(L>=0 && L<n && R>=0 && R<=n && L<=R);
+	uintptr_t esp = read_esp();
+	uintptr_t ebp = read_ebp();
+	cprintf("id = %d esp = %p %p %p\n", sys_getthdid(), esp, read_ebp(), *(uintptr_t*)ebp);
 	if (L+1>=R)
 		return;
 	if (L+2==R)
@@ -33,7 +37,7 @@ void sort(void*para)
 	star[1]=R;
 	if (R-L>16)
 	{
-		int r=create_thread(sort,(void*)stal);
+		thdid_t r=create_thread(sort,(void*)stal);
 		sort(star);
 		wait_thread(r);
 	} else
@@ -45,6 +49,7 @@ void sort(void*para)
 	int i,j,c;
 	for(i=L,j=t,c=L;i<t||j<R;)
 	{
+		assert(c<R);
 		if (j<R&&(i==t||a[i]>a[j]))
 			b[c++]=a[j++];
 		else
