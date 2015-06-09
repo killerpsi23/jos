@@ -99,15 +99,16 @@ delete_thread(thdid_t tar)
 	{
 		if (stk == THREAD_MAX)
 			panic("delete_thread error 0: target thread does not have stack");
-		int r = sys_page_unmap(0, (void*)(UTXSTACKTOP(stk) - PGSIZE));
-		if (r < 0)
-			panic("delete_thread error 1: %e", r);
 		// cannot use stack now
 
 		// it seems that we do not have to lock here, LiChao
-		// thread_lock();
+		thread_lock();
 		thread_used_stack[stk] = 0;
-		// thread_unlock();
+		//thread_unlock();
+		asm volatile("lock; xchgl %0, %1" :
+				"+m" (t_lock) :
+				"a" (0) :
+				"cc");
 
 		// sys_thd_destroy(0);
 		asm volatile("int %0\n"
@@ -130,7 +131,9 @@ delete_thread(thdid_t tar)
 		if (stk == THREAD_MAX)
 			panic("delete_thread error 2: target thread does not have stack");
 		wait_thread(tar);
+		thread_lock();
 		thread_used_stack[stk] = 0;
+		thread_unlock();
 	}
 	return 0;
 }
