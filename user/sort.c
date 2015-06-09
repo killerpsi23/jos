@@ -72,7 +72,7 @@ void umain(int argc, char **argv)
 	sort((void*)sta);
 	end_time = read_tsc();
 	uint64_t delta = end_time - start_time;
-	cprintf("Cost time: %d%d\n", (int)(delta / 1000000000), (int)(delta % 1000000000));
+	cprintf("Cost time: %d%09d\n", (int)(delta / 1000000000), (int)(delta % 1000000000));
 	/*
 	for(i=0;i<n;i++)
 		cprintf("%d ",a[i]);
