@@ -20,7 +20,6 @@ void sort(void*para)
 	assert(L>=0 && L<n && R>=0 && R<=n && L<=R);
 	uintptr_t esp = read_esp();
 	uintptr_t ebp = read_ebp();
-	cprintf("id = %d esp = %p %p %p\n", sys_getthdid(), esp, read_ebp(), *(uintptr_t*)ebp);
 	if (L+1>=R)
 		return;
 	if (L+2==R)

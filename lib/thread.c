@@ -42,21 +42,27 @@ thread_start(void(*func)(void*), void *para)
 thdid_t
 create_thread(void(*func)(void*), void*para)
 {
-	thread_lock();
 	thdid_t child = sys_thd_create();
 	if (child < 0)
 		return child;
+	thread_lock();
 	int p = get_empty_thread_position();
 	if (p < 0)
 		panic(" create_thread error 0: Do not have thread space for new thread!");
 	thread_used_stack[p] = child;
-	cprintf("alloc stack %p\n", UTSTACKTOP(p));
-	int r = sys_page_alloc(0, (void*)(UTXSTACKTOP(p) - PGSIZE), PTE_P | PTE_U | PTE_W);
-	if (r < 0)
-		panic(" create_thread error 1: %e", r);
-	r = sys_page_alloc(0, (void*)(UTSTACKTOP(p) - PGSIZE), PTE_P | PTE_U | PTE_W);
-	if (r < 0)
-		panic(" create_thread error 2: %e", r);
+	thread_unlock();
+	cprintf("alloc stack %08x %p\n", child, UTSTACKTOP(p));
+	int r;
+	if (!((uvpd[PDX(UTXSTACKTOP(p) - PGSIZE)] & PTE_P) && (uvpt[PGNUM(UTXSTACKTOP(p) - PGSIZE)] & PTE_P))) {
+		r = sys_page_alloc(0, (void*)(UTXSTACKTOP(p) - PGSIZE), PTE_P | PTE_U | PTE_W);
+		if (r < 0)
+			panic(" create_thread error 1: %e", r);
+	}
+	if (!((uvpd[PDX(UTSTACKTOP(p) - PGSIZE)] & PTE_P) && (uvpt[PGNUM(UTSTACKTOP(p) - PGSIZE)] & PTE_P))) {
+		r = sys_page_alloc(0, (void*)(UTSTACKTOP(p) - PGSIZE), PTE_P | PTE_U | PTE_W);
+		if (r < 0)
+			panic(" create_thread error 2: %e", r);
+	}
 
 	// set stack for new thread
 	uintptr_t *tmp = (uintptr_t*)UTSTACKTOP(p);
@@ -69,17 +75,15 @@ create_thread(void(*func)(void*), void*para)
 	tf.tf_eflags = 0;
 	tf.tf_eip = (uintptr_t)thread_start;
 	tf.tf_esp = (uintptr_t)(tmp - 1);
-	cprintf("set id = %d eip = %p esp = %p\n",child, tf.tf_eip, tf.tf_esp);
 	r = sys_thd_set_trapframe(child, &tf);
 	if (r < 0)
 		panic(" create_thread error 3: %e", r);
-	r = sys_thd_set_uxstack(child, UTXSTACKTOP(p) - PGSIZE);
+	r = sys_thd_set_uxstack(child, UTXSTACKTOP(p));
 	if (r < 0)
 		panic(" create_thread error 4: %e", r);
 	r = sys_thd_set_status(child, THD_RUNNABLE);
 	if (r < 0)
 		panic(" create_thread error 5: %e", r);
-	thread_unlock();
 	return child;
 }
 
@@ -95,7 +99,7 @@ delete_thread(thdid_t tar)
 	for(stk = 1; stk < THREAD_MAX; stk++)
 		if (thread_used_stack[stk] == tar)
 			break;
-	cprintf("delete stack: %p\n", UTSTACKTOP(stk));
+	cprintf("delete stack: %08x %p\n", tar, UTSTACKTOP(stk));
 	if (cur == tar)
 	{
 		if (stk == THREAD_MAX)
