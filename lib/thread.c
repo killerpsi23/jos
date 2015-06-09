@@ -35,9 +35,9 @@ wait_thread(thdid_t tar)
 static void
 thread_start(void(*func)(void*), void *para)
 {
-	cprintf("lib: new_thread func=%p para=%p\n",func, para);
+	//cprintf("lib: new_thread func=%p para=%p\n",func, para);
 	func(para);
-	cprintf("lib: delete_thread\n");
+	//cprintf("lib: delete_thread\n");
 	delete_thread(0);
 }
 
