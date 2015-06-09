@@ -1,5 +1,25 @@
 #include <inc/lib.h>
 
+void go(void*para)
+{
+	cprintf("hello world! from thread %d\n", sys_getthdid());
+}
+
+void umain(int argc, char **argv)
+{
+	thdid_t r = create_thread(go, NULL);
+	wait_thread(r);
+	cprintf("hello world! from thread %d\n", sys_getthdid());
+}
+
+
+
+
+
+
+
+
+/*
 const int n = 5;
 
 void go(void*f)
@@ -27,3 +47,4 @@ void umain(int argc, char **argv)
 		wait_thread(child[i]);
 }
 
+*/
