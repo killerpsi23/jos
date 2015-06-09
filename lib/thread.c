@@ -4,23 +4,9 @@
 #define THREAD_MAX (PTSIZE / 4)
 
 volatile int thread_used_stack[THREAD_MAX];
-volatile uint32_t t_lock = 0;
+spinlock_t thread_lock = 0;
 
 static int get_empty_thread_position();
-
-static __inline void __attribute__((always_inline))
-thread_lock()
-{
-	while(xchg(&t_lock, 1))
-		sys_yield();
-}
-
-static __inline void __attribute__((always_inline))
-thread_unlock()
-{
-	if (xchg(&t_lock, 0) == 0)
-		panic(" thread_unlock: bad lock");
-}
 
 void
 wait_thread(thdid_t tar)
@@ -45,12 +31,12 @@ create_thread(void(*func)(void*), void*para)
 	thdid_t child = sys_thd_create();
 	if (child < 0)
 		return child;
-	thread_lock();
+	spin_lock(&thread_lock);
 	int p = get_empty_thread_position();
 	if (p < 0)
 		panic(" create_thread error 0: Do not have thread space for new thread!");
 	thread_used_stack[p] = child;
-	thread_unlock();
+	spin_unlock(&thread_lock);
 	cprintf("alloc stack %08x %p\n", child, UTSTACKTOP(p));
 	int r;
 	if (!((uvpd[PDX(UTXSTACKTOP(p) - PGSIZE)] & PTE_P) && (uvpt[PGNUM(UTXSTACKTOP(p) - PGSIZE)] & PTE_P))) {

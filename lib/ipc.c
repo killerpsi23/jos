@@ -38,7 +38,6 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
 		*from_env_store = thisenv->env_ipc_from;
 	if (perm_store)
 		*perm_store = thisenv->env_ipc_perm;
-	//panic("ipc_recv not implemented");
 	return thisenv->env_ipc_value;
 }
 
@@ -54,8 +53,10 @@ void
 ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 {
 	// LAB 4: Your code here.
+	static spinlock_t ipc_lock = 0;
 	if (pg == NULL)
 		pg = (void*)UTOP;
+	spin_lock(&ipc_lock);
 	while(1)
 	{
 		int ret = sys_ipc_try_send(to_env, val, pg, perm);
@@ -65,8 +66,7 @@ ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 			panic("ipc_send_error: %e", ret);
 		sys_yield();
 	}
-
-	//panic("ipc_send not implemented");
+	spin_unlock(&ipc_lock);
 }
 
 // Find the first environment of the given type.  We'll use this to

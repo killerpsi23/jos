@@ -88,6 +88,20 @@ envid_t	fork(void);
 envid_t	sfork(void);	// Challenge!
 
 // thread.c
+typedef volatile uint32_t spinlock_t;
+static __inline void __attribute__((always_inline))
+spin_lock(spinlock_t *lock)
+{
+	while(xchg(lock, 1))
+		sys_yield();
+}
+
+static __inline void __attribute__((always_inline))
+spin_unlock(spinlock_t *lock)
+{
+	if (xchg(lock, 0) == 0)
+		panic(" thread_unlock: bad lock");
+}
 thdid_t create_thread(void(*func)(void*), void*para);
 int delete_thread(thdid_t tar);
 void wait_thread(thdid_t tar);
